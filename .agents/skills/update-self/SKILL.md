@@ -59,26 +59,16 @@ default flow below:
       --version "$(git rev-parse "$OPENHOST_TEMPLATE_INCOMING_REF")"
   ```
 
-Everything else (backup, single-flight, worker dispatch, validation, approval
-gate, reveal) is identical. Proceed through the sections below with `$REF` set as
+Everything else (single-flight, worker dispatch, validation, approval gate,
+reveal) is identical. Proceed through the sections below with `$REF` set as
 above.
 
 ## 1. Preconditions
 
-**Back up first.** Before dispatching anything, capture a restore point of the
-whole workspace so the pass is recoverable -- the reveal re-runs provisioners and
-restarts services, and a backup is the recovery path if one of those goes wrong:
-
-```bash
-uv run host-backup-now
-```
-
-It waits for any in-flight backup, forces a fresh tick, and prints the
-`restic_backup_succeeded` / `restic_backup_failed` event -- confirm success before
-continuing. If it reports backups aren't configured
-(`tick_skipped_due_to_missing_secrets` -- no `runtime/secrets/restic.env`), there
-is **no** restore point: tell the user, and get their explicit go-ahead before
-proceeding without one.
+**Restore point.** There is no in-workspace backup step to run: OpenHost
+snapshots the app-data volume this workspace lives on, and that platform
+snapshot is the recovery path if the reveal's provisioner re-runs or service
+restarts go wrong. Nothing to do here -- start at the single-flight check.
 
 **Single-flight.** One pass at a time (its worker name, branch, and runtime dir
 are fixed). Check for a live one:

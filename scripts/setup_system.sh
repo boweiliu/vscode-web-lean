@@ -31,7 +31,7 @@ provision_skip_if_done setup_system
 apt-get update
 apt-get install -y --no-install-recommends \
     bash build-essential ca-certificates curl earlyoom fd-find git git-lfs jq less nano \
-    openssh-server procps restic ripgrep rsync sqlite3 supervisor tini tmux unison util-linux wget \
+    openssh-server procps ripgrep rsync sqlite3 supervisor tini tmux unison util-linux wget \
     xxd xmlstarlet
 rm -rf /var/lib/apt/lists/*
 

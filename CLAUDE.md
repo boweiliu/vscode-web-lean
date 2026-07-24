@@ -245,11 +245,11 @@ See the `update-service` skill for details.
 Commit your changes locally.
 `runtime/` is gitignored from the main branch (it includes `runtime/memory/` for Claude memory and other transient state).
 
-Chat file uploads (files a user attaches to a message) are stored in the top-level `uploads/` directory inside the repo working tree -- NOT under `runtime/`. Uploads can be arbitrarily large and any format, so they don't belong in version-controllable content; `uploads/` is gitignored. Being outside `runtime/`, uploads are NOT carried by the opt-in GitHub sync (which ships only `runtime/`), but the host-level `host-backup` service (a restic snapshot of the whole host dir) does capture them, so uploads still survive container loss. See `libs/host_backup/README.md`.
+Chat file uploads (files a user attaches to a message) are stored in the top-level `uploads/` directory inside the repo working tree -- NOT under `runtime/`. Uploads can be arbitrarily large and any format, so they don't belong in version-controllable content; `uploads/` is gitignored. Being outside `runtime/`, uploads are NOT carried by the opt-in GitHub sync (which ships only `runtime/`). Durability for them comes from OpenHost itself, which snapshots the app-data volume the whole workspace lives on.
 
 GitHub sync is opt-in via the `github-sync` skill. When the user has enabled it: a `post-commit` hook auto-pushes the active branch of every checkout to `origin` (the workspace's dedicated private repo) in the background -- you do not need to push manually; the hook never blocks the commit, and output is captured at `/tmp/post-commit-push.log`. The `github-sync` service additionally syncs `runtime/` onto a separate orphan branch (`runtime-sync`) on the same `origin`. See `libs/github_sync/README.md`.
 
-When GitHub sync is not enabled, there is no auto-push and no GitHub remote to push to; commits stay local (the restic `host-backup` still protects the whole host dir).
+When GitHub sync is not enabled, there is no auto-push and no GitHub remote to push to; commits stay local (OpenHost's app-data snapshots still protect the whole host dir).
 
 - Don't include auto-generated lockfile churn (`uv.lock`, `package-lock.json`, etc.) in commits unless the change intentionally bumps a dependency.
 

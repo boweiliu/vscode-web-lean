@@ -16,7 +16,6 @@ _BUILTIN_SERVICE_ORDER = (
     "system_interface",
     "cloudflared",
     "github-sync",
-    "host-backup",
     "app-watcher",
     "web",
 )
