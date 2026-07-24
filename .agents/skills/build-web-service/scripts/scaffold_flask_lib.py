@@ -42,7 +42,6 @@ RESERVED_NAMES = frozenset(
         "app-watcher",
         "bootstrap",
         "github-sync",
-        "host-backup",
         "terminal",
         "deferred-install",
         "imbue-common",

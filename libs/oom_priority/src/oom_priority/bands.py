@@ -103,8 +103,8 @@ def chat_agent_oom_score_adj(
 #
 # The services are ordered from least- to most-expendable by how much losing one
 # hurts: the terminal (raw shell access) and the UI come first, then the tunnel,
-# then the runtime-state sync (github-sync, opt-in) and the host backup, then the
-# app-watcher, then the placeholder ``web`` example. ``user`` is the single band
+# then the runtime-state sync (github-sync, opt-in), then the app-watcher, then
+# the placeholder ``web`` example. ``user`` is the single band
 # every *user-created* service shares; it sits above every built-in service so a
 # user's own service is shed before any built-in one, while staying below USER_AGENT.
 #
@@ -126,7 +126,6 @@ SERVICE_BANDS: Final[dict[str, int]] = {
     # Opt-in runtime/ sync (added by the github-sync skill); inherits the band the
     # now-removed runtime-backup service used to hold.
     "github-sync": 40,
-    "host-backup": 50,
     "app-watcher": 60,
     "web": 70,
     "user": USER_SERVICE,

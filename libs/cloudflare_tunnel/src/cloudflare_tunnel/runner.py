@@ -5,9 +5,8 @@ When a token appears or changes, starts (or restarts) ``cloudflared tunnel run
 --token <token>``; when the file is removed, stops cloudflared.
 
 ``runtime/secrets/`` is a directory of per-secret ``*.env`` files (this token,
-``restic.env`` for backups, ...). Each writer
-owns its own file so they never clobber one another -- the historical
-single-file ``runtime/secrets`` is gone.
+...). Each writer owns its own file so they never clobber one another -- the
+historical single-file ``runtime/secrets`` is gone.
 
 Uses both inotify (when available) and mtime polling (10-second fallback)
 to detect changes robustly. All cloudflared output is forwarded immediately
