@@ -1,7 +1,8 @@
 #!/bin/sh
-# Stop the boot-time HTTP placeholder (scripts/openhost_boot_placeholder.py)
-# and wait for it to release the port, so system_interface can bind. Run by
-# the system_interface supervisord program before forward_port/system-interface.
+# Stop the boot-time HTTP placeholder (started by the openhost-minds wrapper's
+# entrypoint from /usr/local/bin/openhost-boot-placeholder) and wait for it to
+# release the port, so system_interface can bind. Run by the system_interface
+# supervisord program before forward_port/system-interface.
 # No-op when the placeholder isn't running (non-OpenHost providers, restarts).
 set -u
 

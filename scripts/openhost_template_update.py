@@ -7,9 +7,9 @@ checkout of this repo and starting a fresh container; the persistent
 untouched. So a redeploy does NOT by itself change the code the mind runs --
 the seed step deliberately never overwrites the volume.
 
-This script bridges that gap. Because the image now carries the deployed
-git history (see the Dockerfile / .dockerignore), three facts are available
-on every boot:
+This script bridges that gap. Because the image carries the deployed template
+git history (see the openhost-minds wrapper's Dockerfile), three facts are
+available on every boot:
 
   * ``/opt/openhost-template-version`` -- the commit SHA baked into THIS image
     (the version OpenHost just deployed).

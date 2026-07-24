@@ -61,8 +61,8 @@ from imbue.system_interface.ws_broadcaster import WebSocketBroadcaster
 _APPLICATIONS_TOML_FILENAME = "runtime/applications.toml"
 _APPLICATIONS_TOML_BASENAME = "applications.toml"
 _DEFAULT_MNGR_BINARY = "mngr"
-# Host-env vars the OpenHost entrypoint writes to steer the template-update
-# reconcile (see scripts/openhost_entrypoint.sh). Absent off OpenHost, which
+# Host-env vars the OpenHost entrypoint (in the openhost-minds wrapper repo)
+# writes to steer the template-update reconcile. Absent off OpenHost, which
 # disables the prompt entirely (the marker path never exists).
 _UPDATE_PENDING_PATH_ENV_VAR = "OPENHOST_UPDATE_PENDING_PATH"
 _INCOMING_REF_ENV_VAR = "OPENHOST_TEMPLATE_INCOMING_REF"
