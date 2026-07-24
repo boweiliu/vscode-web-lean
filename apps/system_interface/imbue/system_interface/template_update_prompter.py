@@ -4,16 +4,18 @@ When OpenHost redeploys a newer app version, the entrypoint's boot check
 (``scripts/openhost_template_update.py``) stages the new commit into the
 workspace as a local ref and writes a pending-update marker. This prompter --
 run once when the AgentManager starts, i.e. once per boot -- notices that
-marker and sends the initial chat agent a message asking it to run update-self
-against the local ref. That message both surfaces the update in the chat and
-drives the reconcile through the mind's normal skill flow (no GitHub round
-trip; the source is the container-local repo).
+marker and sends the initial chat agent a message asking it to run
+fast-self-update against the local ref. That message both surfaces the update in
+the chat and drives the reconcile through the mind's normal skill flow (no
+GitHub round trip; the source is the container-local repo).
 
-The message is a directive the mind acts on, not a mechanical merge: update-self
-carries its own validation and approval gates, so a human stays in the loop for
-anything a clean fast-forward can't resolve. The pending marker is cleared by
-update-self itself (via ``openhost_template_update.py mark-reconciled``) once the
-merge lands, so a still-present marker on the next boot re-prompts -- desirable
+fast-self-update is a script the mind runs, not a judgement call: it merges,
+refreshes dependencies, rebuilds, and restarts on its own, involving the mind
+only to resolve a merge conflict. (`update-self` remains the thorough path --
+worker validation and an approval gate -- for when the user asks for it.) The
+pending marker is cleared by fast-self-update (via
+``openhost_template_update.py mark-reconciled``) once the merge lands and the UI
+is healthy, so a still-present marker on the next boot re-prompts -- desirable
 when a prior attempt was abandoned mid-flight.
 
 Side-effecting collaborators (marker read, message send, target resolution) are
@@ -46,14 +48,16 @@ def read_pending_version(pending_marker_path: Path) -> str | None:
 
 
 def build_update_message(*, target_version: str, incoming_ref: str) -> str:
-    """The chat directive asking the mind to run update-self from the local ref."""
+    """The chat directive asking the mind to land the update from the local ref."""
     return (
         "[OpenHost app update] This app was just updated to a new version "
         f"(`{target_version}`). The new code has been staged into this workspace "
-        f"as the local git ref `{incoming_ref}`. Please run the `update-self` "
-        "skill to pull it in: its OpenHost branch reconciles from that local ref "
-        "(NOT from GitHub upstream). Merge it into your local edits, then let me "
-        "know what changed. If anything needs a decision, ask me before applying."
+        f"as the local git ref `{incoming_ref}`. Please run the `fast-self-update` "
+        "skill to land it -- its script merges that local ref (NOT GitHub "
+        "upstream), refreshes dependencies, rebuilds the frontend and restarts "
+        "the services on its own. It stops for you only if the merge conflicts. "
+        "Then let me know what changed, including anything it reports as needing "
+        "a rebuild."
     )
 
 

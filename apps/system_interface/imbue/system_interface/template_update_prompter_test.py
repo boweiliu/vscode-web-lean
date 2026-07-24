@@ -52,7 +52,7 @@ def test_prompts_only_once_per_boot(tmp_path: Path) -> None:
     h = _Harness(tmp_path)
     h.marker.write_text("v2\n")
     assert h.prompter.check_and_prompt() is True
-    # Marker still present (update-self clears it on success), but we do not
+    # Marker still present (fast-self-update clears it on success), but we do not
     # re-send within the same boot.
     assert h.prompter.check_and_prompt() is False
     assert len(h.sends) == 1
@@ -91,4 +91,4 @@ def test_build_update_message_mentions_version_and_local_ref() -> None:
     msg = build_update_message(target_version="deadbeef", incoming_ref=_INCOMING_REF)
     assert "deadbeef" in msg
     assert _INCOMING_REF in msg
-    assert "update-self" in msg
+    assert "fast-self-update" in msg
