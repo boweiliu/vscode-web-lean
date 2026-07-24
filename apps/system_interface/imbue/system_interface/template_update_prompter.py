@@ -27,7 +27,8 @@ from loguru import logger as _loguru_logger
 
 logger = _loguru_logger
 
-# Default host-env var names the entrypoint writes (see openhost_entrypoint.sh).
+# Default host-env var names the OpenHost entrypoint (openhost-minds wrapper
+# repo) writes.
 _PENDING_PATH_ENV_VAR = "OPENHOST_UPDATE_PENDING_PATH"
 _INCOMING_REF_ENV_VAR = "OPENHOST_TEMPLATE_INCOMING_REF"
 

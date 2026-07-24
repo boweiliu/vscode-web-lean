@@ -25,25 +25,13 @@ mngr create my-workspace main -t local \
 
 ## Running on OpenHost
 
-This branch is directly installable as an [OpenHost](https://github.com/imbue-openhost/openhost)
-app ("minds"): the container is a single workspace host serving the system_interface web UI, with
-Claude Code agents in tmux managed by in-container mngr (local provider). The OpenHost router
-terminates TLS and auth; there is no desktop app, VM layer, or Cloudflare tunnel, and exactly one
-mind per app install.
-
-- `openhost.toml` — the app manifest. Routes the app port to system_interface and consumes two
-  cross-app services: the [bifrost LLM gateway](https://github.com/imbue-openhost/openhost-bifrost-llm-gateway)
-  (`ANTHROPIC_BASE_URL` points at its `/anthropic` drop-in through the router service proxy) and
-  [openhost-latchkey](https://github.com/imbue-openhost/openhost-latchkey) (third-party API calls
-  with the owner's credentials injected; see the rewritten `latchkey` skill).
-- `scripts/openhost_entrypoint.sh` — replaces the desktop client + outer mngr provisioning:
-  symlinks `/mngr` onto `OPENHOST_APP_DATA_DIR`, seeds and git-inits the workspace on first boot,
-  writes the host env (service URLs, app token, `IS_SANDBOX=1` and the other per-host vars the
-  create templates only apply to new hosts), creates the `system-services` agent, restarts it on
-  warm boots, and tails supervisor logs as PID 1.
-- `tests/openhost/` — end-to-end harness tests (own uv project): they deploy this app through a
-  real local OpenHost router under podman, with the real openhost-latchkey app as provider.
-  Run with `cd tests/openhost && uv run pytest`. Requires podman and network.
+This template is adapted to run as an [OpenHost](https://github.com/imbue-openhost/openhost) app
+("minds"): a single workspace host behind the OpenHost router, with the rewritten `latchkey`
+skill, the OpenHost-aware bootstrap, and the update-self reconcile mechanism
+(`scripts/openhost_template_update.py`) living here in the workspace. The app wrapper itself --
+manifest, Dockerfile, entrypoint, and end-to-end harness tests -- lives in
+[openhost-minds](https://github.com/imbue-openhost/openhost-minds), which checks this repo out as
+a git submodule.
 
 ## Create templates
 

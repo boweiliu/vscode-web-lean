@@ -87,20 +87,8 @@ RUN chmod +x /usr/local/bin/default-workspace-template-install-dependencies && d
 # End pre-COPY manifest layer. Source-changing layers begin below.
 # ============================================================================
 
-# copy in all of our code, including .git (see .dockerignore -- the OpenHost
-# build intentionally keeps it). The build context is the repo OpenHost checked
-# out and updates, so /mngr/code/.git is that exact history and its HEAD is the
-# deployed commit. This is what lets an OpenHost app update reach an existing
-# workspace: the workspace is seeded from this history (shared ancestry), so
-# update-self can cleanly 3-way merge a newer deployed commit into the mind's
-# local edits (see scripts/openhost_template_update.py).
+# copy in all of our code:
 COPY . /mngr/code/
-
-# Record the deployed commit SHA at a stable image-layer path (outside /mngr/,
-# so the runtime volume mount does not shadow it, and outside /docker_build_code,
-# which the seed cleans up). The boot check compares this against the copy the
-# workspace stored on its last reconcile to decide whether the app was updated.
-RUN git -C /mngr/code rev-parse HEAD > /opt/openhost-template-version
 
 # Build the workspace from full source. Shared verbatim with the Lima provider.
 RUN bash /mngr/code/scripts/build_workspace.sh
@@ -137,14 +125,3 @@ WORKDIR /
 # is checked out without exec bits.
 COPY scripts/default_workspace_template_seed.sh /usr/local/bin/default-workspace-template-seed
 RUN chmod +x /usr/local/bin/default-workspace-template-seed
-
-# OpenHost entrypoint: replaces the desktop client + outer mngr provisioning
-# (state onto OPENHOST_APP_DATA_DIR, first-boot seed + agent create, warm-boot
-# restart, supervisor logs to stdout). Harmless under other providers, which
-# override the container command.
-COPY scripts/openhost_entrypoint.sh /usr/local/bin/openhost-minds-entrypoint
-# The boot placeholder must be runnable before the first-boot seed puts the
-# workspace at /mngr/code, so it ships at an image-layer path too.
-COPY scripts/openhost_boot_placeholder.py /usr/local/bin/openhost-boot-placeholder
-RUN chmod +x /usr/local/bin/openhost-minds-entrypoint /usr/local/bin/openhost-boot-placeholder
-ENTRYPOINT ["tini", "--", "/usr/local/bin/openhost-minds-entrypoint"]
