@@ -24,16 +24,27 @@ fi
 
 REPO_ROOT="${REPO_ROOT:-/mngr/code}"
 
-# Python and JavaScript dependency installs are independent and could run in
-# parallel; kept sequential for now (clarity), structured so parallelizing is a
-# drop-in later.
+# The Python and JavaScript installs touch disjoint trees (.venv vs
+# node_modules) and neither reads the other's output, so they run concurrently.
+# Their progress output interleaves in the build log.
 
 # Pre-warm the uv wheel cache: install every third-party PyPI dep in the
 # lockfile, skipping workspace + local path packages (build_workspace.sh
 # registers those once the full source is present).
-cd "$REPO_ROOT"
-uv sync --all-packages --frozen --no-install-workspace --no-install-local
+(cd "$REPO_ROOT" && uv sync --all-packages --frozen --no-install-workspace --no-install-local) &
+uv_pid=$!
 
 # Frontend npm dependencies (exact, from the lockfile).
-cd "$REPO_ROOT/apps/system_interface/frontend"
-npm ci
+(cd "$REPO_ROOT/apps/system_interface/frontend" && npm ci) &
+npm_pid=$!
+
+# Wait for both before reporting, so a failure names every install that failed
+# rather than only the first.
+uv_status=0
+npm_status=0
+wait "$uv_pid" || uv_status=$?
+wait "$npm_pid" || npm_status=$?
+if [ "$uv_status" -ne 0 ] || [ "$npm_status" -ne 0 ]; then
+    echo "install_dependencies: uv sync exited ${uv_status}, npm ci exited ${npm_status}" >&2
+    exit 1
+fi

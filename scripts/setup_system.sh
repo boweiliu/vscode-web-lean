@@ -23,16 +23,41 @@ provision_skip_if_done setup_system
 : "${NODE_MAJOR:=20}"
 : "${LATCHKEY_VERSION:=2.21.0}"
 
+# Bootstrap tools for registering the third-party apt repos below: the slim
+# base image ships neither curl nor gnupg.
+apt-get update
+apt-get install -y --no-install-recommends ca-certificates curl gnupg wget
+
+# GitHub CLI apt repo.
+mkdir -p -m 755 /etc/apt/keyrings
+gh_keyring="$(mktemp)"
+wget -nv -O"$gh_keyring" https://cli.github.com/packages/githubcli-archive-keyring.gpg
+tee /etc/apt/keyrings/githubcli-archive-keyring.gpg < "$gh_keyring" > /dev/null
+chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg
+mkdir -p -m 755 /etc/apt/sources.list.d
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" > /etc/apt/sources.list.d/github-cli.list
+
+# Node.js apt repo (NodeSource pins the major; apt resolves within it). This is
+# NodeSource's documented manual setup rather than piping their setup_${NODE_MAJOR}.x
+# script into bash: that script runs its own apt-get update and install, which
+# would undo the single-round consolidation below.
+curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key \
+    | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg
+chmod go+r /etc/apt/keyrings/nodesource.gpg
+echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_${NODE_MAJOR}.x nodistro main" > /etc/apt/sources.list.d/nodesource.list
+
 # System packages (tini for signal handling; supervisor runs our background
 # services; earlyoom is the OOM-prevention daemon that sheds memory under
 # pressure before the kernel kills an arbitrary victim; the rest are
 # agent/runtime deps). supervisor provides the system supervisord + supervisorctl
-# that `uv run bootstrap` execs into the foreground.
+# that `uv run bootstrap` execs into the foreground. Registering the repos above
+# first means gh and nodejs come from this one update + install round rather
+# than two more of their own.
 apt-get update
 apt-get install -y --no-install-recommends \
-    bash build-essential ca-certificates curl earlyoom fd-find git git-lfs jq less nano \
-    openssh-server procps ripgrep rsync sqlite3 supervisor tini tmux unison util-linux wget \
-    xxd xmlstarlet
+    bash build-essential ca-certificates curl earlyoom fd-find gh git git-lfs jq less nano \
+    nodejs openssh-server procps ripgrep rsync sqlite3 supervisor tini tmux unison util-linux \
+    wget xxd xmlstarlet
 rm -rf /var/lib/apt/lists/*
 
 # The Debian `supervisor` package enables a systemd unit that immediately starts
@@ -56,18 +81,6 @@ chmod +x /usr/local/bin/ttyd
 cloudflared_arch="$(dpkg --print-architecture)"
 curl -fsSL "https://github.com/cloudflare/cloudflared/releases/download/${CLOUDFLARED_VERSION}/cloudflared-linux-${cloudflared_arch}" -o /usr/local/bin/cloudflared
 chmod +x /usr/local/bin/cloudflared
-
-# GitHub CLI from its official apt repo.
-mkdir -p -m 755 /etc/apt/keyrings
-gh_keyring="$(mktemp)"
-wget -nv -O"$gh_keyring" https://cli.github.com/packages/githubcli-archive-keyring.gpg
-tee /etc/apt/keyrings/githubcli-archive-keyring.gpg < "$gh_keyring" > /dev/null
-chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg
-mkdir -p -m 755 /etc/apt/sources.list.d
-echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" > /etc/apt/sources.list.d/github-cli.list
-apt-get update
-apt-get install -y gh
-rm -rf /var/lib/apt/lists/*
 
 # uv (pinned). Installs to /root/.local/bin.
 curl -LsSf "https://astral.sh/uv/${UV_VERSION}/install.sh" | sh
@@ -101,11 +114,6 @@ fi
 curl -fsSL https://claude.ai/install.sh > /tmp/install_claude.sh
 bash /tmp/install_claude.sh "${CLAUDE_CODE_VERSION}"
 test -x /root/.local/bin/claude
-
-# Node.js (NodeSource pins the major; apt resolves within it).
-curl -fsSL "https://deb.nodesource.com/setup_${NODE_MAJOR}.x" | bash -
-apt-get install -y nodejs
-rm -rf /var/lib/apt/lists/*
 
 # Pre-seed github.com SSH host keys so git operations don't block on interactive
 # host-key confirmation. Idempotent: only added when absent.
