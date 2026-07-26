@@ -5,6 +5,7 @@ from imbue.system_interface.proxy import generate_backend_loading_html
 from imbue.system_interface.proxy import generate_bootstrap_html
 from imbue.system_interface.proxy import generate_service_worker_js
 from imbue.system_interface.proxy import generate_websocket_shim_js
+from imbue.system_interface.proxy import is_webview_document_path
 from imbue.system_interface.proxy import rewrite_absolute_paths_in_html
 from imbue.system_interface.proxy import rewrite_cookie_path
 from imbue.system_interface.proxy import rewrite_proxied_html
@@ -195,6 +196,35 @@ def test_rewrite_proxied_html_without_head_tag() -> None:
     )
     assert result.startswith(f'<base href="/service/{_TEST_SERVICE}/">')
     assert "<html><body>Hello</body></html>" in result
+
+
+# -- Webview document detection --
+
+
+def test_is_webview_document_path_matches_index() -> None:
+    path = "stable-197ef3e8da/static/out/vs/workbench/contrib/webview/browser/pre/index.html"
+    assert is_webview_document_path(path) is True
+
+
+def test_is_webview_document_path_matches_fake_and_no_csp() -> None:
+    base = "stable-197ef3e8da/static/out/vs/workbench/contrib/webview/browser/pre/"
+    assert is_webview_document_path(base + "fake.html") is True
+    assert is_webview_document_path(base + "index-no-csp.html") is True
+
+
+def test_is_webview_document_path_matches_with_leading_slash() -> None:
+    path = "/stable-197ef3e8da/static/out/vs/workbench/contrib/webview/browser/pre/index.html"
+    assert is_webview_document_path(path) is True
+
+
+def test_is_webview_document_path_rejects_workbench_page() -> None:
+    assert is_webview_document_path("") is False
+    assert is_webview_document_path("stable-197ef3e8da/static/out/vs/code/browser/workbench/workbench.html") is False
+
+
+def test_is_webview_document_path_rejects_similar_but_unrelated_paths() -> None:
+    # A path that mentions "webview" elsewhere but is not the pre/ host document.
+    assert is_webview_document_path("static/out/vs/workbench/contrib/webview/browser/webviewElement.js") is False
 
 
 def test_generate_backend_loading_html_with_no_services_has_no_links() -> None:

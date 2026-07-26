@@ -26,6 +26,7 @@ import threading
 from collections.abc import Iterator
 from typing import Any
 from typing import Final
+from urllib.parse import quote
 from urllib.parse import urlsplit
 from urllib.parse import urlunsplit
 
@@ -42,6 +43,7 @@ from imbue.system_interface.primitives import ServiceName
 from imbue.system_interface.proxy import generate_backend_loading_html
 from imbue.system_interface.proxy import generate_bootstrap_html
 from imbue.system_interface.proxy import generate_service_worker_js
+from imbue.system_interface.proxy import is_webview_document_path
 from imbue.system_interface.proxy import rewrite_cookie_path
 from imbue.system_interface.proxy import rewrite_proxied_html
 
@@ -183,8 +185,16 @@ def _iter_backend_stream(backend_response: httpx.Response, service_name: str) ->
 def _build_proxy_response(
     backend_response: httpx.Response,
     service_name: ServiceName,
+    is_webview_document: bool,
 ) -> Response:
-    """Transform a backend httpx response into a Flask Response with header/content rewriting."""
+    """Transform a backend httpx response into a Flask Response with header/content rewriting.
+
+    ``is_webview_document`` marks a VS Code (code-server) webview iframe document,
+    whose HTML must pass through byte-for-byte: its strict CSP blocks the injected
+    WebSocket-shim script and its ``<base>``/absolute-path rewriting breaks the
+    webview's relative-path resolution. All other HTML still gets the normal
+    ``<base>`` tag + WS shim + absolute-path rewriting.
+    """
     header_pairs: list[tuple[str, str]] = []
     for header_key, header_value in backend_response.headers.multi_items():
         if header_key.lower() in _EXCLUDED_RESPONSE_HEADERS:
@@ -199,7 +209,7 @@ def _build_proxy_response(
     content: str | bytes = backend_response.content
 
     content_type = backend_response.headers.get("content-type", "")
-    if "text/html" in content_type:
+    if "text/html" in content_type and not is_webview_document:
         html_text = backend_response.text
         rewritten_html = rewrite_proxied_html(
             html_content=html_text,
@@ -226,6 +236,24 @@ def _handle_service_sw_js(service_name: str) -> Response:
         generate_service_worker_js(ServiceName(service_name)),
         mimetype="application/javascript",
     )
+
+
+def _redirect_service_root_to_slash(service_name: str) -> Response:
+    """Redirect the bare ``/service/<name>`` form to the trailing-slash form.
+
+    Werkzeug's automatic strict-slashes redirect emits an *absolute* ``Location``
+    built from the request's ``Host`` header. Behind the OpenHost router the
+    inbound ``Host`` is ``localhost``, so that redirect sends the browser to an
+    unreachable ``http://localhost:8000/...``. We instead issue a **host-relative**
+    ``Location`` (a leading-slash path with no scheme/host), which the browser
+    resolves against whatever origin it is actually on -- correct on loopback and
+    behind the public domain alike. The service name is URL-encoded and any query
+    string is preserved.
+    """
+    location = f"/service/{quote(service_name, safe='')}/"
+    if request.query_string:
+        location = f"{location}?{request.query_string.decode()}"
+    return Response(status=308, headers={"Location": location})
 
 
 def _handle_service_http(service_name: str, path: str) -> Response:
@@ -278,6 +306,7 @@ def _handle_service_http(service_name: str, path: str) -> Response:
     return _build_proxy_response(
         backend_response=result,
         service_name=parsed_service,
+        is_webview_document=is_webview_document_path(path),
     )
 
 
@@ -433,6 +462,20 @@ def register_service_routes(application: Flask, sock: Any) -> None:
     both share the same URL pattern.
     """
     http_methods = ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"]
+    # The bare no-trailing-slash form (``/service/web``) is registered explicitly
+    # so we control the redirect to the slash form. Without this rule, Werkzeug's
+    # automatic strict-slashes redirect kicks in and emits an *absolute*
+    # ``Location`` built from the inbound ``Host`` header (``localhost`` behind
+    # the router), sending the browser somewhere unreachable;
+    # ``_redirect_service_root_to_slash`` emits a host-relative ``Location``
+    # instead. The trailing-slash and ``<path:path>`` forms below match their own
+    # requests directly, so this rule only ever sees the bare form.
+    application.add_url_rule(
+        "/service/<service_name>",
+        view_func=_redirect_service_root_to_slash,
+        methods=http_methods,
+        endpoint="_redirect_service_root_to_slash",
+    )
     # The trailing-slash form (``/service/web/``, empty path) must route to the
     # proxy too -- the ``<path:path>`` converter does not match an empty
     # segment, so register it explicitly with a default path.

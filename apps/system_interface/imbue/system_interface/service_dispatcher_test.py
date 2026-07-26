@@ -29,6 +29,16 @@ from imbue.system_interface.ws_broadcaster import WebSocketBroadcaster
 
 _WS_RECEIVE_TIMEOUT = 10.0
 
+# A code-server webview host document: a strict CSP meta and a <head> that the
+# proxy must leave byte-for-byte intact. Shared by the stub backend route and
+# the passthrough test so the byte-identity assertion cannot drift.
+_WEBVIEW_DOCUMENT_HTML = (
+    "<!DOCTYPE html>\n<html><head>"
+    '<meta http-equiv="Content-Security-Policy" '
+    "content=\"script-src 'sha256-abc123' 'self';\">"
+    "<title>webview</title></head><body></body></html>"
+)
+
 
 def _build_stub_backend() -> Flask:
     """Build a tiny Flask app that exercises the proxy's HTML/cookie/SSE/WS paths."""
@@ -41,6 +51,10 @@ def _build_stub_backend() -> Flask:
             '<html><head><title>stub</title></head><body><a href="/relative-link">rel</a></body></html>',
             mimetype="text/html",
         )
+
+    @stub.route("/<commit>/static/out/vs/workbench/contrib/webview/browser/pre/<page>")
+    def webview_document(commit: str, page: str) -> Response:
+        return Response(_WEBVIEW_DOCUMENT_HTML, mimetype="text/html")
 
     @stub.route("/plain")
     def plain() -> Response:
@@ -166,6 +180,28 @@ def test_forwarded_absolute_href_is_rewritten(workspace_client: FlaskClient) -> 
     assert 'href="/service/web/relative-link"' in response.text
 
 
+def test_webview_document_html_passes_through_unmodified(workspace_client: FlaskClient) -> None:
+    """VS Code webview iframe documents must be forwarded byte-for-byte.
+
+    The proxy injects a <base> tag and an inline WebSocket-shim <script> into
+    normal HTML, but a webview document carries a strict CSP that blocks the
+    script and resolves resources relative to window.location, so the injection
+    corrupts it (blank InfoView, failed CSS/JS loads). This asserts the webview
+    path is left untouched: no injection, CSP meta intact, body byte-identical
+    to what the backend served.
+    """
+    workspace_client.set_cookie("sw_installed_web", "1")
+    response = workspace_client.get(
+        "/service/web/stable-197ef3e8da/static/out/vs/workbench/contrib/webview/browser/pre/index.html"
+    )
+    assert response.status_code == 200
+    # Byte-identical passthrough: no <base>, no WS shim, CSP meta preserved.
+    assert response.data == _WEBVIEW_DOCUMENT_HTML.encode()
+    assert "<base href=" not in response.text
+    assert "OrigWebSocket" not in response.text
+    assert "Content-Security-Policy" in response.text
+
+
 def test_forwarded_plain_text_is_unchanged(workspace_client: FlaskClient) -> None:
     """Non-HTML responses pass through as-is."""
     workspace_client.set_cookie("sw_installed_web", "1")
@@ -189,6 +225,55 @@ def test_set_cookie_is_rewritten_to_service_path(workspace_client: FlaskClient) 
     assert response.status_code == 200
     set_cookie = response.headers.get("set-cookie", "")
     assert "Path=/service/web/" in set_cookie
+
+
+def test_no_slash_service_redirects_to_host_relative_slash_form(workspace_client: FlaskClient) -> None:
+    """The bare ``/service/<name>`` form redirects to the slash form with a host-relative Location.
+
+    Behind the OpenHost router the inbound ``Host`` is ``localhost``. Werkzeug's
+    automatic strict-slashes redirect would emit an absolute URL built from that
+    host (``http://localhost:8000/service/web/``), which is unreachable from the
+    user's machine. The explicit redirect must instead emit a host-relative path
+    (leading ``/``, no scheme/host) that the browser resolves against its own
+    origin. This assertion is true iff the localhost-leak bug is fixed.
+    """
+    response = workspace_client.get(
+        "/service/web",
+        headers={"Host": "localhost:8000", "sec-fetch-mode": "navigate"},
+    )
+    assert response.status_code == 308
+    location = response.headers["Location"]
+    assert location == "/service/web/"
+    # Host-relative: an absolute URL would start with a scheme and could carry the
+    # leaked host; a host-relative one is just a rooted path.
+    assert location.startswith("/")
+    assert "://" not in location
+    assert "localhost" not in location
+
+
+def test_no_slash_service_redirect_preserves_query_string(workspace_client: FlaskClient) -> None:
+    """The no-slash redirect keeps any query string on the slash-form Location."""
+    response = workspace_client.get(
+        "/service/web?foo=bar&baz=qux",
+        headers={"Host": "localhost:8000"},
+    )
+    assert response.status_code == 308
+    assert response.headers["Location"] == "/service/web/?foo=bar&baz=qux"
+
+
+def test_no_slash_redirect_is_generic_across_service_names(workspace_client: FlaskClient) -> None:
+    """The redirect is keyed on the ``<service_name>`` pattern, not any one service.
+
+    The bug affects every service (browser, terminal, lean-ide, ...), so the fix
+    must apply to an arbitrary name -- even one with no backend registered, since
+    the redirect happens before any backend lookup.
+    """
+    response = workspace_client.get(
+        "/service/lean-ide",
+        headers={"Host": "localhost:8000"},
+    )
+    assert response.status_code == 308
+    assert response.headers["Location"] == "/service/lean-ide/"
 
 
 def test_unknown_service_returns_loading_page_for_html(workspace_client: FlaskClient) -> None:

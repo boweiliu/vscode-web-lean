@@ -13,6 +13,27 @@ _ABSOLUTE_PATH_ATTR_PATTERN: Final[re.Pattern[str]] = re.compile(
     re.IGNORECASE,
 )
 
+# Path segment that identifies a VS Code (code-server) webview iframe document.
+# code-server serves the webview host documents (index.html, fake.html,
+# index-no-csp.html) at ``<commit>/static/out/vs/workbench/contrib/webview/
+# browser/pre/...``. This segment is stable across the commit-hash prefix.
+_WEBVIEW_DOCUMENT_PATH_SEGMENT: Final[str] = "/webview/browser/pre/"
+
+
+@pure
+def is_webview_document_path(path: str) -> bool:
+    """Return whether ``path`` identifies a VS Code webview iframe document.
+
+    These documents (index.html, fake.html, index-no-csp.html) carry a strict
+    ``Content-Security-Policy`` and resolve their resources relative to
+    ``window.location`` by design. The proxy's normal HTML rewriting -- injecting
+    an inline WebSocket-shim ``<script>`` (blocked by the CSP) and a ``<base>``
+    tag (breaks relative-path resolution) -- corrupts them, so they must pass
+    through untouched. The leading slash on the segment ensures we match the
+    ``.../contrib/webview/browser/pre/`` directory, not an unrelated substring.
+    """
+    return _WEBVIEW_DOCUMENT_PATH_SEGMENT in f"/{path.lstrip('/')}"
+
 
 @pure
 def get_service_prefix(service_name: ServiceName) -> str:

@@ -1,0 +1,11 @@
+name = "lean_playground"
+version = "0.1.0"
+defaultTargets = ["hello", "fib"]
+
+[[lean_exe]]
+name = "hello"
+root = "HelloWorld"
+
+[[lean_exe]]
+name = "fib"
+root = "Fibonacci"
