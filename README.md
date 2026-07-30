@@ -1,3 +1,4 @@
+<img width="1512" height="823" alt="Screenshot 2026-07-30 at 4 50 45 PM" src="https://github.com/user-attachments/assets/9b438761-4412-4dc8-bfb7-976e8d5f7dbd" />
 # VS Code Web for Lean
 
 A browser-based Lean 4 IDE: VS Code (code-server) in a workspace tab with an integrated terminal, the Lean 4 extension, and a working interactive InfoView -- served same-origin behind the workspace proxy.
